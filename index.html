@@ -2,58 +2,25 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Neon Survival: Hybrid Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Neon Survival Final</title>
     <style>
-        body, html {
-            margin: 0; padding: 0;
-            width: 100%; height: 100%;
-            overflow: hidden;
-            background-color: #05050a;
-            display: flex; align-items: center; justify-content: center;
-            touch-action: none; /* منع التمرير أو التكبير باللمس أثناء اللعب */
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #05050a; touch-action: none; }
         canvas { display: block; background-color: #060612; cursor: none; }
-        .ui-panel {
-            position: fixed; top: 20px; right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px 25px; border-radius: 8px;
-            border-right: 5px solid #00ffff;
-            pointer-events: none; z-index: 10;
-        }
-        #timerDisplay {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 22px; color: #00ffff;
-            text-shadow: 0 0 10px #00ffff;
-        }
-        #game-over {
-            position: fixed; top: 50%; left: 50%;
-            transform: translate(-50%, -50%) scale(0.8);
-            background: rgba(10, 10, 20, 0.98);
-            padding: 40px; border-radius: 20px;
-            text-align: center; border: 2px solid #ff007f;
-            box-shadow: 0 0 50px rgba(255, 0, 127, 0.5);
-            opacity: 0; visibility: hidden;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            z-index: 100;
-            width: 80%; max-width: 400px;
-        }
+        .ui-panel { position: fixed; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.8); padding: 10px 15px; border-radius: 8px; border-right: 4px solid #00ffff; pointer-events: none; z-index: 10; }
+        #timerDisplay { font-family: monospace; font-size: clamp(14px, 4vw, 22px); color: #00ffff; }
+        #game-over { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8); background: rgba(10, 10, 20, 0.98); padding: 30px; border-radius: 20px; text-align: center; border: 2px solid #ff007f; opacity: 0; visibility: hidden; transition: 0.4s; z-index: 100; width: 80%; max-width: 350px; }
         #game-over.show { transform: translate(-50%, -50%) scale(1); opacity: 1; visibility: visible; }
-        h1 { color: #ff007f; text-shadow: 0 0 10px #ff007f; margin: 0; font-family: sans-serif; }
-        button {
-            background: transparent; color: #00ffff; border: 2px solid #00ffff;
-            padding: 12px 35px; font-size: 1.1rem; cursor: pointer;
-            margin-top: 20px; font-weight: bold; font-family: sans-serif;
-        }
+        h1 { color: #ff007f; margin: 0; font-family: sans-serif; }
+        button { background: transparent; color: #00ffff; border: 2px solid #00ffff; padding: 10px 25px; cursor: pointer; margin-top: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
-
     <canvas id="gameCanvas"></canvas>
     <div class="ui-panel"><div id="timerDisplay">00:00:00:000</div></div>
     <div id="game-over">
-        <h1>لقد خسرت!</h1>
-        <p style="color: #ccc; font-family: sans-serif;">الوقت المسجل:<br><span id="finalTime" style="color: #00ffff; font-family: monospace; font-size: 22px;"></span></p>
+        <h1>تحطمت الأنظمة!</h1>
+        <p style="color: #ccc; font-family: sans-serif;">الوقت:<br><span id="finalTime" style="color: #00ffff; font-family: monospace;"></span></p>
         <button onclick="resetGame()">إعادة تشغيل</button>
     </div>
 
@@ -65,34 +32,33 @@
         const finalTimeDisplay = document.getElementById('finalTime');
 
         let startTime, elapsedTime = 0, isGameOver = false, animationId;
-        let wallSpeed, meteors = [], walls = [];
-        let meteorCounter = 0;
-        const player = { x: 0, y: 0, size: 25, color: '#00ffff' };
+        let wallSpeedBase, meteorSpeedBase, walls = [], meteors = [], meteorCounter = 0;
+        const player = { x: 0, y: 0, size: 0 };
+        let lastTouchX = 0, lastTouchY = 0, isTouching = false;
 
-        // متغيرات اللمس للتحريك النسبي
-        let lastTouchX = 0;
-        let lastTouchY = 0;
-        let isTouching = false;
-
-        function resizeCanvas() {
+        function initSizes() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            if(!isGameOver && elapsedTime === 0) {
+            const minDim = Math.min(canvas.width, canvas.height);
+            player.size = minDim * 0.05;
+            if (elapsedTime === 0) {
                 player.x = canvas.width / 2 - player.size / 2;
                 player.y = canvas.height / 2 - player.size / 2;
             }
+            wallSpeedBase = canvas.width / 200; 
+            meteorSpeedBase = canvas.width / 180;
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
 
-        // تحكم الماوس (PC) - يبقى كما هو
+        window.addEventListener('resize', initSizes);
+        initSizes();
+
         window.addEventListener('mousemove', (e) => {
             if (isGameOver || isTouching) return;
             player.x = e.clientX - (player.size / 2);
             player.y = e.clientY - (player.size / 2);
+            keepIn();
         });
 
-        // تحكم اللمس (Mobile) - تحريك نسبي
         canvas.addEventListener('touchstart', (e) => {
             if (isGameOver) return;
             isTouching = true;
@@ -102,162 +68,98 @@
 
         canvas.addEventListener('touchmove', (e) => {
             if (isGameOver || !isTouching) return;
-            e.preventDefault(); // منع التمرير
-
-            let currentTouchX = e.touches[0].clientX;
-            let currentTouchY = e.touches[0].clientY;
-
-            // حساب المسافة التي تحركها الإصبع منذ آخر لمسة
-            let dx = currentTouchX - lastTouchX;
-            let dy = currentTouchY - lastTouchY;
-
-            // تحديث مكان اللاعب بناءً على "فرق المسافة" وليس مكان النقر
-            player.x += dx;
-            player.y += dy;
-
-            // منع الخروج من الحواف
-            player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
-            player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
-
-            lastTouchX = currentTouchX;
-            lastTouchY = currentTouchY;
+            e.preventDefault();
+            player.x += e.touches[0].clientX - lastTouchX;
+            player.y += e.touches[0].clientY - lastTouchY;
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
+            keepIn();
         }, { passive: false });
 
         canvas.addEventListener('touchend', () => { isTouching = false; });
 
+        function keepIn() {
+            player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+            player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+        }
+
         function formatTime(ms) {
-            let msec = parseInt(ms % 1000), sec = parseInt((ms / 1000) % 60);
-            let min = parseInt((ms / (1000 * 60)) % 60), hrs = parseInt((ms / (1000 * 60 * 60)) % 24);
+            let msec = parseInt(ms % 1000), sec = parseInt((ms/1000)%60), min = parseInt((ms/(1000*60))%60), hrs = parseInt((ms/(1000*60*60))%24);
             return `${hrs.toString().padStart(2,'0')}:${min.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}:${msec.toString().padStart(3,'0')}`;
         }
 
         function spawnWall() {
-            const side = Math.floor(Math.random() * 4);
-            let gapSize = Math.max(130, canvas.width * 0.18);
-            const thickness = 40;
-            let wall = { side, thickness, x: 0, y: 0, gapSize, gapPos: 0 };
-
-            if (side === 0 || side === 2) {
-                wall.gapPos = Math.random() * (canvas.width - gapSize);
-                wall.y = (side === 0) ? -thickness : canvas.height;
-            } else {
-                wall.gapPos = Math.random() * (canvas.height - gapSize);
-                wall.x = (side === 1) ? canvas.width : -thickness;
-            }
+            const side = Math.floor(Math.random()*4), minDim = Math.min(canvas.width, canvas.height);
+            let gapSize = minDim * 0.3, thickness = minDim * 0.08, wall = { side, thickness, x: 0, y: 0, gapSize, gapPos: 0 };
+            if (side === 0 || side === 2) { wall.gapPos = Math.random() * (canvas.width - gapSize); wall.y = (side === 0) ? -thickness : canvas.height; }
+            else { wall.gapPos = Math.random() * (canvas.height - gapSize); wall.x = (side === 1) ? canvas.width : -thickness; }
             walls.push(wall);
         }
 
         function spawnMeteor() {
             meteorCounter++;
-            const isBoss = (meteorCounter % 30 === 0);
-            const side = Math.floor(Math.random() * 4);
-            let x, y, r = isBoss ? 50 : 14;
-            
-            if (side === 0) { x = Math.random() * canvas.width; y = -r; }
-            else if (side === 1) { x = canvas.width + r; y = Math.random() * canvas.height; }
-            else if (side === 2) { x = Math.random() * canvas.width; y = canvas.height + r; }
-            else { x = -r; y = Math.random() * canvas.height; }
-
-            const angle = Math.atan2((player.y + player.size/2) - y, (player.x + player.size/2) - x);
-            const speed = (isBoss ? 5 : 6) + (elapsedTime / 15000);
-
-            meteors.push({ x, y, r, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, isBoss, phase: Math.random() * 6 });
+            const isBoss = (meteorCounter % 30 === 0), side = Math.floor(Math.random()*4), minDim = Math.min(canvas.width, canvas.height);
+            let x, y, r = isBoss ? minDim * 0.09 : minDim * 0.022;
+            if (side === 0) { x = Math.random()*canvas.width; y = -r; }
+            else if (side === 1) { x = canvas.width+r; y = Math.random()*canvas.height; }
+            else if (side === 2) { x = Math.random()*canvas.width; y = canvas.height+r; }
+            else { x = -r; y = Math.random()*canvas.height; }
+            const angle = Math.atan2((player.y+player.size/2)-y, (player.x+player.size/2)-x);
+            const s = (isBoss ? meteorSpeedBase * 0.85 : meteorSpeedBase) * (1 + elapsedTime / 60000);
+            meteors.push({ x, y, r, vx: Math.cos(angle)*s, vy: Math.sin(angle)*s, isBoss, phase: Math.random()*6 });
         }
 
         function update() {
             if (isGameOver) return;
             elapsedTime = Date.now() - startTime;
             timerDisplay.innerText = formatTime(elapsedTime);
-
-            wallSpeed = 5.5 + (elapsedTime / 6000);
-            const shouldShowWalls = (elapsedTime < 30000 || elapsedTime > 120000);
-            
-            if (shouldShowWalls) {
-                if (walls.length === 0) spawnWall();
-            } else {
-                if (walls.length > 0) walls = [];
-            }
-
+            let curWallSpeed = wallSpeedBase * (1 + elapsedTime / 45000);
+            if (elapsedTime < 30000 || elapsedTime > 120000) { if(walls.length === 0) spawnWall(); }
+            else { walls = []; }
             walls.forEach((w, i) => {
-                if (w.side === 0) w.y += wallSpeed;
-                else if (w.side === 1) w.x -= wallSpeed;
-                else if (w.side === 2) w.y -= wallSpeed;
-                else if (w.side === 3) w.x += wallSpeed;
-                if (checkWallCollision(w)) gameOver();
-                if (w.y > canvas.height + 100 || w.x < -100 || w.y < -100 || w.x > canvas.width + 100) walls.splice(i, 1);
+                if(w.side===0) w.y+=curWallSpeed; else if(w.side===1) w.x-=curWallSpeed; else if(w.side===2) w.y-=curWallSpeed; else w.x+=curWallSpeed;
+                if(checkCol(w)) gameOver();
+                if(w.y>canvas.height+100||w.x<-100||w.y<-100||w.x>canvas.width+100) walls.splice(i,1);
             });
-
             if (elapsedTime > 30000) {
-                if (Math.random() < 0.05 + (elapsedTime / 600000)) spawnMeteor();
+                if (Math.random() < 0.04) spawnMeteor();
                 meteors.forEach((m, i) => {
-                    if (m.isBoss) {
-                        m.phase += 0.15;
-                        m.x += m.vx + Math.sin(m.phase) * 6;
-                        m.y += m.vy + Math.cos(m.phase) * 6;
-                    } else {
-                        m.x += m.vx; m.y += m.vy;
-                    }
-                    const dist = Math.hypot(m.x - (player.x + player.size/2), m.y - (player.y + player.size/2));
-                    if (dist < m.r + player.size/2) gameOver();
-                    if (m.x < -300 || m.x > canvas.width + 300 || m.y < -300 || m.y > canvas.height + 300) meteors.splice(i, 1);
+                    if (m.isBoss) { m.phase += 0.15; m.x += m.vx + Math.sin(m.phase)*7; m.y += m.vy + Math.cos(m.phase)*7; }
+                    else { m.x += m.vx; m.y += m.vy; }
+                    if (Math.hypot(m.x-(player.x+player.size/2), m.y-(player.y+player.size/2)) < m.r+player.size/2) gameOver();
+                    if (m.x<-300||m.x>canvas.width+300||m.y<-300||m.y>canvas.height+300) meteors.splice(i, 1);
                 });
             }
         }
 
-        function checkWallCollision(w) {
+        function checkCol(w) {
             let r1, r2;
-            if (w.side === 0 || w.side === 2) {
-                r1 = { x: 0, y: w.y, w: w.gapPos, h: w.thickness };
-                r2 = { x: w.gapPos + w.gapSize, y: w.y, w: canvas.width, h: w.thickness };
-            } else {
-                r1 = { x: w.x, y: 0, w: w.thickness, h: w.gapPos };
-                r2 = { x: w.x, y: w.gapPos + w.gapSize, w: w.thickness, h: canvas.height };
-            }
-            const p = player;
-            const check = (r) => p.x < r.x + r.w && p.x + p.size > r.x && p.y < r.y + r.h && p.y + p.size > r.y;
+            if (w.side === 0 || w.side === 2) { r1 = { x: 0, y: w.y, w: w.gapPos, h: w.thickness }; r2 = { x: w.gapPos + w.gapSize, y: w.y, w: canvas.width, h: w.thickness }; }
+            else { r1 = { x: w.x, y: 0, w: w.thickness, h: w.gapPos }; r2 = { x: w.x, y: w.gapPos + w.gapSize, w: w.thickness, h: canvas.height }; }
+            const check = (r) => player.x < r.x+r.w && player.x+player.size > r.x && player.y < r.y+r.h && player.y+player.size > r.y;
             return check(r1) || check(r2);
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.shadowBlur = 15; ctx.shadowColor = '#ff007f'; ctx.fillStyle = '#ff007f';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ff007f'; ctx.fillStyle = '#ff007f';
             walls.forEach(w => {
-                if (w.side === 0 || w.side === 2) {
-                    ctx.fillRect(0, w.y, w.gapPos, w.thickness);
-                    ctx.fillRect(w.gapPos + w.gapSize, w.y, canvas.width, w.thickness);
-                } else {
-                    ctx.fillRect(w.x, 0, w.thickness, w.gapPos);
-                    ctx.fillRect(w.x, w.gapPos + w.gapSize, w.thickness, canvas.height);
-                }
+                if (w.side === 0 || w.side === 2) { ctx.fillRect(0, w.y, w.gapPos, w.thickness); ctx.fillRect(w.gapPos + w.gapSize, w.y, canvas.width, w.thickness); }
+                else { ctx.fillRect(w.x, 0, w.thickness, w.gapPos); ctx.fillRect(w.x, w.gapPos + w.gapSize, w.thickness, canvas.height); }
             });
             meteors.forEach(m => {
-                ctx.shadowBlur = m.isBoss ? 40 : 15;
-                ctx.shadowColor = m.isBoss ? '#bc13fe' : '#ff3333';
-                ctx.fillStyle = m.isBoss ? '#bc13fe' : '#ff3333';
+                ctx.shadowColor = m.isBoss ? '#bc13fe' : '#ff3333'; ctx.fillStyle = m.isBoss ? '#bc13fe' : '#ff3333';
                 ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill();
             });
-            ctx.shadowBlur = 20; ctx.shadowColor = '#00ffff'; ctx.fillStyle = '#00ffff';
+            ctx.shadowColor = '#00ffff'; ctx.fillStyle = '#00ffff';
             ctx.fillRect(player.x, player.y, player.size, player.size);
             ctx.shadowBlur = 0;
         }
 
-        function gameLoop() {
-            update(); draw();
-            animationId = requestAnimationFrame(gameLoop);
-        }
-
-        function gameOver() {
-            isGameOver = true; cancelAnimationFrame(animationId);
-            finalTimeDisplay.innerText = formatTime(elapsedTime);
-            gameOverScreen.classList.add('show');
-        }
-
-        function resetGame() {
-            walls = []; meteors = []; isGameOver = false; elapsedTime = 0; meteorCounter = 0;
-            startTime = Date.now();
-            gameOverScreen.classList.remove('show');
-            gameLoop();
-        }
+        function gameLoop() { update(); draw(); animationId = requestAnimationFrame(gameLoop); }
+        function gameOver() { isGameOver = true; cancelAnimationFrame(animationId); finalTimeDisplay.innerText = formatTime(elapsedTime); gameOverScreen.classList.add('show'); }
+        function resetGame() { walls = []; meteors = []; isGameOver = false; elapsedTime = 0; meteorCounter = 0; initSizes(); startTime = Date.now(); gameOverScreen.classList.remove('show'); gameLoop(); }
 
         startTime = Date.now();
         gameLoop();
