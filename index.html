@@ -19,9 +19,9 @@
     <canvas id="gameCanvas"></canvas>
     <div class="ui-panel"><div id="timerDisplay">00:00:00:000</div></div>
     <div id="game-over">
-        <h1>تحطمت الأنظمة!</h1>
-        <p style="color: #ccc; font-family: sans-serif;">وقت الصمود:<br><span id="finalTime" style="color: #00ffff; font-family: monospace;"></span></p>
-        <button onclick="resetGame()">إعادة محاولة</button>
+        <h1>You Lose</h1>
+        <p style="color: #ccc; font-family: sans-serif;">Your Time:<br><span id="finalTime" style="color: #00ffff; font-family: monospace;"></span></p>
+        <button onclick="resetGame()">Retry</button>
     </div>
 
     <script>
@@ -173,4 +173,5 @@
         gameLoop();
     </script>
 </body>
+
 </html>
